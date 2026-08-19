@@ -100,7 +100,7 @@ const createQuotation = async (req, res) => {
       terms: terms || '',
       bankDetails: bankDetails || {},
       loanDetails: loanDetails || {},
-      validUntil: validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       createdBy: req.user._id,
       owner: ownerId,
     });
@@ -148,7 +148,7 @@ const getQuotations = async (req, res) => {
     }
 
     let quotations = await Quotation.find(query)
-      .populate('lead', 'name email phone address paymentMode leadId')
+      .populate('lead', 'name email phone address paymentMode leadId roofType propertyType solarCapacity monthlyBill')
       .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .lean();
@@ -179,7 +179,7 @@ const getQuotations = async (req, res) => {
 const getQuotationById = async (req, res) => {
   try {
     const quotation = await Quotation.findById(req.params.id)
-      .populate('lead', 'name email phone address paymentMode leadId')
+      .populate('lead', 'name email phone address paymentMode leadId roofType propertyType solarCapacity monthlyBill')
       .populate('createdBy', 'name');
 
     if (quotation) {
@@ -315,7 +315,7 @@ const updateQuotation = async (req, res) => {
     quotation.terms = terms || quotation.terms;
     if (bankDetails) quotation.bankDetails = bankDetails;
     if (loanDetails) quotation.loanDetails = loanDetails;
-    if (validUntil) quotation.validUntil = validUntil;
+    quotation.validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     const updatedQuotation = await quotation.save();
 

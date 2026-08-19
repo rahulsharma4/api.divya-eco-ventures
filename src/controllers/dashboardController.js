@@ -57,7 +57,7 @@ const getDashboardStats = async (req, res) => {
 
     let staffCount = 0;
     if (req.user.role === 'admin') {
-      staffCount = await User.countDocuments({ role: 'staff', owner: req.user._id, isDeleted: { $ne: true } });
+      staffCount = await User.countDocuments({ role: { $in: ['staff', 'telecaller'] }, owner: req.user._id, isDeleted: { $ne: true } });
     }
 
     let quotationQuery = { owner: req.user.role === 'admin' ? req.user._id : req.user.owner };
