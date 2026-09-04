@@ -142,4 +142,68 @@ const deleteInvoice = async (req, res) => {
   }
 };
 
-module.exports = { createInvoice, getInvoices, deleteInvoice };
+// @desc    Update an invoice
+// @route   PUT /api/invoices/:id
+// @access  Private/Admin
+const updateInvoice = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    if (req.user.role !== 'admin') {
+      return res.status(401).json({ message: 'Not authorized to update invoice' });
+    }
+
+    const { baseAmount, gstPercentage, isGstInclusive, amountPaid, bankDetails, systemSize, solarPanels, inverter } = req.body;
+
+    const isInclusive = isGstInclusive === true || isGstInclusive === 'true';
+    const gstPerc = isInclusive ? 8.9 : (Number(gstPercentage) || invoice.gstPercentage);
+
+    let gstAmount = 0;
+    let totalAmount = 0;
+    let storedBaseAmount = 0;
+
+    const inputBaseAmt = baseAmount !== undefined ? baseAmount : (invoice.isGstInclusive ? invoice.totalAmount : invoice.baseAmount);
+
+    if (isInclusive) {
+      totalAmount = Number(inputBaseAmt) || 0;
+      gstAmount = (totalAmount * 8.9) / 108.9;
+      storedBaseAmount = totalAmount - gstAmount;
+    } else {
+      storedBaseAmount = Number(inputBaseAmt) || 0;
+      gstAmount = (storedBaseAmount * gstPerc) / 100;
+      totalAmount = storedBaseAmount + gstAmount;
+    }
+
+    const paidAmt = amountPaid !== undefined ? Number(amountPaid) : invoice.amountPaid;
+    const balanceAmount = totalAmount - paidAmt;
+    
+    let paymentStatus = 'Unpaid';
+    if (paidAmt > 0) {
+      paymentStatus = paidAmt >= totalAmount ? 'Paid' : 'Partially Paid';
+    }
+
+    invoice.baseAmount = storedBaseAmount;
+    invoice.gstPercentage = gstPerc;
+    invoice.gstAmount = gstAmount;
+    invoice.isGstInclusive = isInclusive;
+    invoice.totalAmount = totalAmount;
+    invoice.amountPaid = paidAmt;
+    invoice.balanceAmount = balanceAmount;
+    invoice.paymentStatus = paymentStatus;
+    
+    if (bankDetails) invoice.bankDetails = bankDetails;
+    if (systemSize !== undefined) invoice.systemSize = systemSize;
+    if (solarPanels !== undefined) invoice.solarPanels = solarPanels;
+    if (inverter !== undefined) invoice.inverter = inverter;
+
+    const updatedInvoice = await invoice.save();
+    res.json(updatedInvoice);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+module.exports = { createInvoice, getInvoices, deleteInvoice, updateInvoice };

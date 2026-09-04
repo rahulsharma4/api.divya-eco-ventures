@@ -114,4 +114,57 @@ const getPayments = async (req, res) => {
   }
 };
 
-module.exports = { addPayment, getPayments };
+// @desc    Update a payment
+// @route   PUT /api/payments/:id
+// @access  Private/Admin
+const updatePayment = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    if (req.user.role !== 'admin') {
+      return res.status(401).json({ message: 'Not authorized to update payment' });
+    }
+
+    const { amount, paymentDate, paymentMode, paymentType, remarks, referenceNo, bankName, chequeDate } = req.body;
+
+    payment.amount = amount || payment.amount;
+    payment.paymentDate = paymentDate || payment.paymentDate;
+    payment.paymentMode = paymentMode || payment.paymentMode;
+    payment.paymentType = paymentType || payment.paymentType;
+    payment.remarks = remarks !== undefined ? remarks : payment.remarks;
+    payment.referenceNo = referenceNo !== undefined ? referenceNo : payment.referenceNo;
+    payment.bankName = bankName !== undefined ? bankName : payment.bankName;
+    payment.chequeDate = chequeDate !== undefined ? chequeDate : payment.chequeDate;
+
+    const updatedPayment = await payment.save();
+    res.json(updatedPayment);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a payment
+// @route   DELETE /api/payments/:id
+// @access  Private/Admin
+const deletePayment = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    if (req.user.role !== 'admin') {
+      return res.status(401).json({ message: 'Not authorized to delete payment' });
+    }
+
+    await Payment.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Payment deleted successfully' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+module.exports = { addPayment, getPayments, updatePayment, deletePayment };
