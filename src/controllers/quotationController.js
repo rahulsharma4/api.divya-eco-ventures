@@ -1,7 +1,53 @@
 const Quotation = require('../models/quotationModel');
 const Lead = require('../models/leadModel');
 const Payment = require('../models/paymentModel');
+const Settings = require('../models/settingsModel');
 const { getNextSequenceValue } = require('../utils/counter');
+
+const DEFAULT_TERMS = [
+  '5 year comprehensive warranty from our side if proper maintenance of system is done.',
+  'Standard warranty 10 years on ongrid invertor, 5 years on hybrid invertor, 12/30 years on solar panels from manufacturer side subject to their terms and conditions.',
+  'Quotation validity 30 days.'
+];
+
+// @desc    Get global quotation terms & conditions
+// @route   GET /api/quotations/terms/global
+// @access  Private
+const getQuotationTerms = async (req, res) => {
+  try {
+    let setting = await Settings.findOne({ key: 'quotation_terms' });
+    if (!setting) {
+      setting = await Settings.create({ key: 'quotation_terms', value: DEFAULT_TERMS });
+    }
+    res.json({ terms: setting.value });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update global quotation terms & conditions
+// @route   PUT /api/quotations/terms/global
+// @access  Private/Admin
+const updateQuotationTerms = async (req, res) => {
+  try {
+    const { terms } = req.body;
+    let termsValue = terms;
+    if (typeof terms === 'string') {
+      termsValue = terms.split('\n').map(t => t.trim()).filter(Boolean);
+    } else if (Array.isArray(terms)) {
+      termsValue = terms.map(t => t.trim()).filter(Boolean);
+    }
+    
+    let setting = await Settings.findOneAndUpdate(
+      { key: 'quotation_terms' },
+      { value: termsValue },
+      { new: true, upsert: true }
+    );
+    res.json({ terms: setting.value });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 // @desc    Create a new quotation
 // @route   POST /api/quotations
@@ -17,17 +63,26 @@ const createQuotation = async (req, res) => {
       isGstInclusive, billingName, pricingMode, customPrices
     } = req.body;
 
-    // Generate Quotation Number (e.g. Q-2026-0001)
+    // Generate Quotation Number starting from 2025 (e.g. Q-2026-2025, Q-2026-2026)
     const year = new Date().getFullYear();
-    const lastQuotation = await Quotation.findOne({
+    const allQuotations = await Quotation.find({
       quotationNo: new RegExp(`^Q-${year}-`)
-    }).sort({ quotationNo: -1 });
+    }).select('quotationNo');
 
-    let nextNumber = 1;
-    if (lastQuotation) {
-      const lastNo = parseInt(lastQuotation.quotationNo.split('-')[2]);
-      nextNumber = lastNo + 1;
+    let highestNum = 2024;
+    for (const q of allQuotations) {
+      if (q.quotationNo) {
+        const parts = q.quotationNo.split('-');
+        if (parts.length >= 3) {
+          const num = parseInt(parts[2], 10);
+          if (!isNaN(num) && num > highestNum) {
+            highestNum = num;
+          }
+        }
+      }
     }
+
+    const nextNumber = highestNum + 1;
     const quotationNo = `Q-${year}-${nextNumber.toString().padStart(4, '0')}`;
 
     // Calculations
@@ -158,7 +213,7 @@ const getQuotations = async (req, res) => {
       quotations = quotations.map(q => {
         const qPayments = allPayments.filter(p => p.leadId.toString() === q.lead?._id?.toString());
         const amountPaid = qPayments.reduce((acc, p) => acc + p.amount, 0);
-        const netValue = q.netEffectivePrice || 0;
+        const netValue = q.netPrice || 0;
         return {
           ...q,
           amountPaid,
@@ -422,4 +477,14 @@ const deleteQuotation = async (req, res) => {
   }
 };
 
-module.exports = { createQuotation, getQuotations, getQuotationById, updateQuotation, updateFulfillmentStatus, updateEmiStatus, deleteQuotation };
+module.exports = { 
+  createQuotation, 
+  getQuotations, 
+  getQuotationById, 
+  updateQuotation, 
+  updateFulfillmentStatus, 
+  updateEmiStatus, 
+  deleteQuotation,
+  getQuotationTerms,
+  updateQuotationTerms
+};

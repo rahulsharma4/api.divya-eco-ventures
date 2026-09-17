@@ -67,11 +67,16 @@ const getDashboardStats = async (req, res) => {
 
     const quotations = await Quotation.find(quotationQuery);
     const totalQuotations = quotations.length;
-    const pipelineValue = quotations.reduce((acc, q) => acc + (q.netEffectivePrice || 0), 0);
+    const pipelineValue = quotations.reduce((acc, q) => acc + (q.netPrice || 0), 0);
 
-    const paidLeadIds = new Set(payments.map(p => p.leadId.toString()));
-    const orders = quotations.filter(q => paidLeadIds.has(q.lead.toString()));
+    const paidLeadIds = new Set(payments.map(p => p.leadId?.toString()).filter(Boolean));
+    const orders = quotations.filter(q => q.lead && paidLeadIds.has(q.lead.toString()));
     const totalOrders = orders.length;
+
+    // Gross Revenue uses total contract netPrice of confirmed orders (or total collections if higher)
+    const confirmedOrdersRevenue = orders.reduce((acc, q) => acc + (q.netPrice || 0), 0);
+    const totalPaymentsCollected = payments.reduce((acc, item) => acc + item.amount, 0);
+    const totalRevenue = Math.max(totalPaymentsCollected, confirmedOrdersRevenue);
 
     const completedFulfillmentStatuses = ['Installation done', 'Net meter pending', 'Net meter done', 'AMC docs pending', 'AMC handover done'];
     const activeInstallations = orders.filter(q => !completedFulfillmentStatuses.includes(q.fulfillmentStatus)).length;

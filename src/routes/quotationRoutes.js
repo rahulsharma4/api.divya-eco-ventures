@@ -1,9 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const { createQuotation, getQuotations, getQuotationById, updateQuotation, updateFulfillmentStatus, updateEmiStatus, deleteQuotation } = require('../controllers/quotationController');
+const { 
+  createQuotation, 
+  getQuotations, 
+  getQuotationById, 
+  updateQuotation, 
+  updateFulfillmentStatus, 
+  updateEmiStatus, 
+  deleteQuotation,
+  getQuotationTerms,
+  updateQuotationTerms
+} = require('../controllers/quotationController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
 router.route('/').get(protect, getQuotations).post(protect, createQuotation);
+router.route('/terms/global')
+  .get(protect, getQuotationTerms)
+  .put(protect, admin, updateQuotationTerms);
+
 router.route('/:id')
   .get(protect, getQuotationById)
   .put(protect, updateQuotation)
