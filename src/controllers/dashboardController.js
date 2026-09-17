@@ -48,7 +48,7 @@ const getDashboardStats = async (req, res) => {
     const pendingLeads = await Lead.countDocuments({ ...leadQuery, status: 'New' });
     
     const payments = await Payment.find(paymentQuery);
-    const totalRevenue = payments.reduce((acc, item) => acc + item.amount, 0);
+    const totalPaymentsCollected = payments.reduce((acc, item) => acc + item.amount, 0);
 
     const recentLeads = await Lead.find(leadQuery)
       .sort({ createdAt: -1 })
@@ -73,10 +73,9 @@ const getDashboardStats = async (req, res) => {
     const orders = quotations.filter(q => q.lead && paidLeadIds.has(q.lead.toString()));
     const totalOrders = orders.length;
 
-    // Gross Revenue uses total contract netPrice of confirmed orders (or total collections if higher)
-    const confirmedOrdersRevenue = orders.reduce((acc, q) => acc + (q.netPrice || 0), 0);
-    const totalPaymentsCollected = payments.reduce((acc, item) => acc + item.amount, 0);
-    const totalRevenue = Math.max(totalPaymentsCollected, confirmedOrdersRevenue);
+    // Gross Revenue uses total contract netPrice of all active/confirmed quotations/orders
+    const totalQuotationGrossValue = quotations.reduce((acc, q) => acc + (q.netPrice || 0), 0);
+    const totalRevenue = Math.max(totalPaymentsCollected, totalQuotationGrossValue);
 
     const completedFulfillmentStatuses = ['Installation done', 'Net meter pending', 'Net meter done', 'AMC docs pending', 'AMC handover done'];
     const activeInstallations = orders.filter(q => !completedFulfillmentStatuses.includes(q.fulfillmentStatus)).length;
