@@ -63,27 +63,29 @@ const createQuotation = async (req, res) => {
       isGstInclusive, billingName, pricingMode, customPrices
     } = req.body;
 
-    // Generate Quotation Number starting from 2025 (e.g. Q-2026-2025, Q-2026-2026)
+    // Generate Quotation Number (e.g. 2026-025, 2026-026)
     const year = new Date().getFullYear();
-    const allQuotations = await Quotation.find({
-      quotationNo: new RegExp(`^Q-${year}-`)
-    }).select('quotationNo');
+    const allQuotations = await Quotation.find().select('quotationNo');
 
-    let highestNum = 2024;
+    let highestNum = 0;
     for (const q of allQuotations) {
       if (q.quotationNo) {
-        const parts = q.quotationNo.split('-');
-        if (parts.length >= 3) {
-          const num = parseInt(parts[2], 10);
-          if (!isNaN(num) && num > highestNum) {
-            highestNum = num;
+        let str = q.quotationNo.replace(/^#?\s*Q-?/i, '');
+        const parts = str.split('-');
+        if (parts.length >= 2) {
+          let num = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(num)) {
+            if (num >= 2000) num = num - 2000;
+            if (num > highestNum) {
+              highestNum = num;
+            }
           }
         }
       }
     }
 
     const nextNumber = highestNum + 1;
-    const quotationNo = `Q-${year}-${nextNumber.toString().padStart(4, '0')}`;
+    const quotationNo = `${year}-${nextNumber.toString().padStart(3, '0')}`;
 
     // Calculations
     const baseAmt = Number(baseAmount) || 0;
