@@ -7,7 +7,7 @@ const Quotation = require('../models/quotationModel');
 const createInvoice = async (req, res) => {
   try {
     const { 
-      leadId, quotationId, systemSize, solarPanels, inverter,
+      leadId, quotationId, systemSize, solarPanels, inverter, itemDescription,
       baseAmount, gstPercentage, amountPaid, bankDetails, isGstInclusive
     } = req.body;
 
@@ -59,9 +59,10 @@ const createInvoice = async (req, res) => {
       lead: leadId,
       quotation: quotationId,
       invoiceNo,
-      systemSize,
-      solarPanels,
-      inverter,
+      systemSize: systemSize || 'N/A',
+      solarPanels: solarPanels || 'N/A',
+      inverter: inverter || 'N/A',
+      itemDescription: itemDescription || 'DESIGN, SUPPLY & INSTALLATION OF SOLAR PV SYSTEM',
       baseAmount: storedBaseAmount,
       gstPercentage: gstPerc,
       gstAmount,
@@ -156,7 +157,7 @@ const updateInvoice = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized to update invoice' });
     }
 
-    const { baseAmount, gstPercentage, isGstInclusive, amountPaid, bankDetails, systemSize, solarPanels, inverter } = req.body;
+    const { baseAmount, gstPercentage, isGstInclusive, amountPaid, bankDetails, systemSize, solarPanels, inverter, itemDescription } = req.body;
 
     const isInclusive = isGstInclusive === true || isGstInclusive === 'true';
     const gstPerc = isInclusive ? 8.9 : (Number(gstPercentage) || invoice.gstPercentage);
@@ -198,6 +199,7 @@ const updateInvoice = async (req, res) => {
     if (systemSize !== undefined) invoice.systemSize = systemSize;
     if (solarPanels !== undefined) invoice.solarPanels = solarPanels;
     if (inverter !== undefined) invoice.inverter = inverter;
+    if (itemDescription !== undefined) invoice.itemDescription = itemDescription;
 
     const updatedInvoice = await invoice.save();
     res.json(updatedInvoice);

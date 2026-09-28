@@ -67,13 +67,25 @@ const getDashboardStats = async (req, res) => {
 
     const quotations = await Quotation.find(quotationQuery);
     const totalQuotations = quotations.length;
-    const pipelineValue = quotations.reduce((acc, q) => acc + (q.netPrice || 0), 0);
 
     const paidLeadIds = new Set(payments.map(p => p.leadId?.toString()).filter(Boolean));
     const orders = quotations.filter(q => q.lead && paidLeadIds.has(q.lead.toString()));
     const totalOrders = orders.length;
 
-    // Gross Revenue uses total contract netPrice of all active/confirmed quotations/orders
+    // Calculate total remaining amount to be collected across all clients
+    const allLeadsForStats = await Lead.find(leadQuery);
+    let totalRemainingAmount = 0;
+    allLeadsForStats.forEach(l => {
+      if (l.quotationAmount && l.quotationAmount > 0) {
+        const leadPaid = payments
+          .filter(p => p.leadId && p.leadId.toString() === l._id.toString())
+          .reduce((acc, p) => acc + p.amount, 0);
+        const rem = Math.max(0, l.quotationAmount - leadPaid);
+        totalRemainingAmount += rem;
+      }
+    });
+
+    // Gross Revenue uses total contract netPrice of all active/confirmed quotations/orders or total collections
     const totalQuotationGrossValue = quotations.reduce((acc, q) => acc + (q.netPrice || 0), 0);
     const totalRevenue = Math.max(totalPaymentsCollected, totalQuotationGrossValue);
 
@@ -122,7 +134,8 @@ const getDashboardStats = async (req, res) => {
       totalLeads,
       pendingLeads,
       totalRevenue,
-      pipelineValue,
+      remainingAmount: totalRemainingAmount,
+      pipelineValue: totalRemainingAmount,
       totalQuotations,
       totalOrders,
       activeInstallations,

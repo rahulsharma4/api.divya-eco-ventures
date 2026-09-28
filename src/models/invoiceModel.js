@@ -24,6 +24,7 @@ const invoiceSchema = mongoose.Schema(
     systemSize: { type: String, required: true },
     solarPanels: { type: String, required: true },
     inverter: { type: String, required: true },
+    itemDescription: { type: String },
     
     baseAmount: { type: Number, required: true },
     gstPercentage: { type: Number, default: 0 },
