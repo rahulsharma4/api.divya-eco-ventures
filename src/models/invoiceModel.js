@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+const invoiceItemSchema = mongoose.Schema({
+  itemDescription: { type: String, required: true },
+  hsnCode: { type: String, default: '' },
+  quantity: { type: Number, default: 1 },
+  rate: { type: Number, default: 0 },
+  gstPercentage: { type: Number, default: 0 },
+  amount: { type: Number, default: 0 }
+});
+
 const invoiceSchema = mongoose.Schema(
   {
     lead: {
@@ -20,10 +29,14 @@ const invoiceSchema = mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    // Same fields as quotation for data consistency
-    systemSize: { type: String, required: true },
-    solarPanels: { type: String, required: true },
-    inverter: { type: String, required: true },
+    dueDate: {
+      type: Date,
+    },
+    items: [invoiceItemSchema],
+    // Project / Technical Specs
+    systemSize: { type: String, default: 'N/A' },
+    solarPanels: { type: String, default: 'N/A' },
+    inverter: { type: String, default: 'N/A' },
     itemDescription: { type: String },
     
     baseAmount: { type: Number, required: true },
@@ -40,6 +53,8 @@ const invoiceSchema = mongoose.Schema(
       enum: ['Unpaid', 'Partially Paid', 'Paid'],
       default: 'Unpaid',
     },
+    notes: { type: String },
+    terms: { type: String },
     bankDetails: {
       accountName: { type: String },
       accountNumber: { type: String },
@@ -65,3 +80,4 @@ const invoiceSchema = mongoose.Schema(
 const Invoice = mongoose.model('Invoice', invoiceSchema);
 
 module.exports = Invoice;
+
