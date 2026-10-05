@@ -4,6 +4,7 @@ const invoiceItemSchema = mongoose.Schema({
   itemDescription: { type: String, required: true },
   hsnCode: { type: String, default: '' },
   quantity: { type: Number, default: 1 },
+  unit: { type: String, default: 'Pcs' },
   rate: { type: Number, default: 0 },
   gstPercentage: { type: Number, default: 0 },
   amount: { type: Number, default: 0 }
@@ -32,6 +33,17 @@ const invoiceSchema = mongoose.Schema(
     dueDate: {
       type: Date,
     },
+    // Dispatch and Order References
+    referenceNo: { type: String, default: '' },
+    otherReferences: { type: String, default: '' },
+    buyersOrderNo: { type: String, default: '' },
+    buyersOrderDate: { type: Date },
+    dispatchDocNo: { type: String, default: '' },
+    deliveryNoteDate: { type: Date },
+    dispatchedThrough: { type: String, default: '' },
+    destination: { type: String, default: '' },
+    termsOfDelivery: { type: String, default: '' },
+
     items: [invoiceItemSchema],
     // Project / Technical Specs
     systemSize: { type: String, default: 'N/A' },
@@ -80,4 +92,5 @@ const invoiceSchema = mongoose.Schema(
 const Invoice = mongoose.model('Invoice', invoiceSchema);
 
 module.exports = Invoice;
+
 

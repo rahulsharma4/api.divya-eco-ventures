@@ -9,7 +9,9 @@ const createInvoice = async (req, res) => {
     const { 
       leadId, quotationId, customInvoiceNo, invoiceNo: manualInvoiceNo, date, dueDate,
       systemSize, solarPanels, inverter, itemDescription, items,
-      baseAmount, gstPercentage, amountPaid, bankDetails, isGstInclusive, notes, terms
+      baseAmount, gstPercentage, amountPaid, bankDetails, isGstInclusive, notes, terms,
+      referenceNo, otherReferences, buyersOrderNo, buyersOrderDate,
+      dispatchDocNo, deliveryNoteDate, dispatchedThrough, destination, termsOfDelivery
     } = req.body;
 
     // Handle Custom Invoice Number or Auto generation
@@ -24,7 +26,7 @@ const createInvoice = async (req, res) => {
       if (lastInvoice) {
           const lastNo = parseInt(lastInvoice.invoiceNo.split('-')[2]);
           if (lastInvoice.invoiceNo.startsWith('INV-')) {
-              nextNumber = lastNo + 502; // Transition from INV-2026-0014 to DEV-2026-516
+              nextNumber = lastNo + 502;
           } else {
               nextNumber = lastNo + 1;
           }
@@ -32,30 +34,34 @@ const createInvoice = async (req, res) => {
       finalInvoiceNo = `DEV-${year}-${nextNumber}`;
     }
 
+    const isInclusive = isGstInclusive === true || isGstInclusive === 'true';
+    const globalGstPerc = isInclusive ? 8.9 : (Number(gstPercentage) || 0);
+
     // Process items if provided
     let processedItems = [];
     let calculatedBaseAmount = 0;
 
     if (Array.isArray(items) && items.length > 0) {
       processedItems = items.map(item => {
-        const qty = Number(item.quantity) || 1;
+        const qty = item.quantity === '' || item.quantity === undefined ? 1 : Number(item.quantity);
         const rate = Number(item.rate) || 0;
-        const amt = Number(item.amount) || (qty * rate);
+        const amt = Number(item.amount) || ((isNaN(qty) ? 1 : qty) * rate);
+        const itemGst = item.gstPercentage !== undefined && item.gstPercentage !== '' && !isNaN(Number(item.gstPercentage)) 
+          ? Number(item.gstPercentage) 
+          : globalGstPerc;
+        
         calculatedBaseAmount += amt;
         return {
           itemDescription: item.itemDescription || item.name || 'Product Item',
           hsnCode: item.hsnCode || '',
-          quantity: qty,
+          quantity: isNaN(qty) ? 1 : qty,
+          unit: item.unit || 'Pcs',
           rate: rate,
-          gstPercentage: Number(item.gstPercentage) || Number(gstPercentage) || 0,
+          gstPercentage: itemGst,
           amount: amt
         };
       });
     }
-
-    // Calculations
-    const isInclusive = isGstInclusive === true || isGstInclusive === 'true';
-    const gstPerc = isInclusive ? 8.9 : (Number(gstPercentage) || 0);
 
     const inputBaseAmount = calculatedBaseAmount > 0 ? calculatedBaseAmount : (Number(baseAmount) || 0);
 
@@ -69,7 +75,7 @@ const createInvoice = async (req, res) => {
       storedBaseAmount = totalAmount - gstAmount;
     } else {
       storedBaseAmount = inputBaseAmount;
-      gstAmount = (storedBaseAmount * gstPerc) / 100;
+      gstAmount = (storedBaseAmount * globalGstPerc) / 100;
       totalAmount = storedBaseAmount + gstAmount;
     }
 
@@ -88,13 +94,22 @@ const createInvoice = async (req, res) => {
       invoiceNo: finalInvoiceNo,
       date: date ? new Date(date) : new Date(),
       dueDate: dueDate ? new Date(dueDate) : undefined,
+      referenceNo: referenceNo || '',
+      otherReferences: otherReferences || '',
+      buyersOrderNo: buyersOrderNo || '',
+      buyersOrderDate: buyersOrderDate ? new Date(buyersOrderDate) : undefined,
+      dispatchDocNo: dispatchDocNo || '',
+      deliveryNoteDate: deliveryNoteDate ? new Date(deliveryNoteDate) : undefined,
+      dispatchedThrough: dispatchedThrough || '',
+      destination: destination || '',
+      termsOfDelivery: termsOfDelivery || '',
       items: processedItems,
       systemSize: systemSize || 'N/A',
       solarPanels: solarPanels || 'N/A',
       inverter: inverter || 'N/A',
       itemDescription: itemDescription || (processedItems.length > 0 ? processedItems[0].itemDescription : 'DESIGN, SUPPLY & INSTALLATION OF SOLAR PV SYSTEM'),
       baseAmount: storedBaseAmount,
-      gstPercentage: gstPerc,
+      gstPercentage: globalGstPerc,
       gstAmount,
       isGstInclusive: isInclusive,
       totalAmount,
@@ -108,7 +123,6 @@ const createInvoice = async (req, res) => {
       owner: ownerId,
     });
 
-    // If created from quotation, mark quotation as converted
     if (quotationId) {
       await Quotation.findByIdAndUpdate(quotationId, { status: 'Converted' });
     }
@@ -157,12 +171,10 @@ const deleteInvoice = async (req, res) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    // Authorize: Admin only
     if (req.user.role !== 'admin') {
       return res.status(401).json({ message: 'Not authorized to delete invoices' });
     }
 
-    // If quotation is linked, revert its status to Pending
     if (invoice.quotation) {
       await Quotation.findByIdAndUpdate(invoice.quotation, { status: 'Pending' });
     }
@@ -192,7 +204,9 @@ const updateInvoice = async (req, res) => {
     const { 
       invoiceNo, date, dueDate, baseAmount, gstPercentage, isGstInclusive, 
       amountPaid, bankDetails, systemSize, solarPanels, inverter, 
-      itemDescription, items, notes, terms 
+      itemDescription, items, notes, terms,
+      referenceNo, otherReferences, buyersOrderNo, buyersOrderDate,
+      dispatchDocNo, deliveryNoteDate, dispatchedThrough, destination, termsOfDelivery
     } = req.body;
 
     if (invoiceNo !== undefined && invoiceNo.trim()) {
@@ -203,29 +217,44 @@ const updateInvoice = async (req, res) => {
     if (notes !== undefined) invoice.notes = notes;
     if (terms !== undefined) invoice.terms = terms;
 
+    if (referenceNo !== undefined) invoice.referenceNo = referenceNo;
+    if (otherReferences !== undefined) invoice.otherReferences = otherReferences;
+    if (buyersOrderNo !== undefined) invoice.buyersOrderNo = buyersOrderNo;
+    if (buyersOrderDate !== undefined) invoice.buyersOrderDate = buyersOrderDate ? new Date(buyersOrderDate) : null;
+    if (dispatchDocNo !== undefined) invoice.dispatchDocNo = dispatchDocNo;
+    if (deliveryNoteDate !== undefined) invoice.deliveryNoteDate = deliveryNoteDate ? new Date(deliveryNoteDate) : null;
+    if (dispatchedThrough !== undefined) invoice.dispatchedThrough = dispatchedThrough;
+    if (destination !== undefined) invoice.destination = destination;
+    if (termsOfDelivery !== undefined) invoice.termsOfDelivery = termsOfDelivery;
+
+    const isInclusive = isGstInclusive !== undefined ? (isGstInclusive === true || isGstInclusive === 'true') : invoice.isGstInclusive;
+    const globalGstPerc = isInclusive ? 8.9 : (gstPercentage !== undefined ? (Number(gstPercentage) || 0) : invoice.gstPercentage);
+
     let processedItems = [];
     let calculatedBaseAmount = 0;
 
     if (Array.isArray(items)) {
       processedItems = items.map(item => {
-        const qty = Number(item.quantity) || 1;
+        const qty = item.quantity === '' || item.quantity === undefined ? 1 : Number(item.quantity);
         const rate = Number(item.rate) || 0;
-        const amt = Number(item.amount) || (qty * rate);
+        const amt = Number(item.amount) || ((isNaN(qty) ? 1 : qty) * rate);
+        const itemGst = item.gstPercentage !== undefined && item.gstPercentage !== '' && !isNaN(Number(item.gstPercentage)) 
+          ? Number(item.gstPercentage) 
+          : globalGstPerc;
+
         calculatedBaseAmount += amt;
         return {
           itemDescription: item.itemDescription || item.name || 'Product Item',
           hsnCode: item.hsnCode || '',
-          quantity: qty,
+          quantity: isNaN(qty) ? 1 : qty,
+          unit: item.unit || 'Pcs',
           rate: rate,
-          gstPercentage: Number(item.gstPercentage) || Number(gstPercentage) || 0,
+          gstPercentage: itemGst,
           amount: amt
         };
       });
       invoice.items = processedItems;
     }
-
-    const isInclusive = isGstInclusive !== undefined ? (isGstInclusive === true || isGstInclusive === 'true') : invoice.isGstInclusive;
-    const gstPerc = isInclusive ? 8.9 : (gstPercentage !== undefined ? (Number(gstPercentage) || 0) : invoice.gstPercentage);
 
     let inputBaseAmt = 0;
     if (calculatedBaseAmount > 0) {
@@ -246,7 +275,7 @@ const updateInvoice = async (req, res) => {
       storedBaseAmount = totalAmount - gstAmount;
     } else {
       storedBaseAmount = Number(inputBaseAmt) || 0;
-      gstAmount = (storedBaseAmount * gstPerc) / 100;
+      gstAmount = (storedBaseAmount * globalGstPerc) / 100;
       totalAmount = storedBaseAmount + gstAmount;
     }
 
@@ -259,7 +288,7 @@ const updateInvoice = async (req, res) => {
     }
 
     invoice.baseAmount = storedBaseAmount;
-    invoice.gstPercentage = gstPerc;
+    invoice.gstPercentage = globalGstPerc;
     invoice.gstAmount = gstAmount;
     invoice.isGstInclusive = isInclusive;
     invoice.totalAmount = totalAmount;
@@ -281,4 +310,5 @@ const updateInvoice = async (req, res) => {
 };
 
 module.exports = { createInvoice, getInvoices, deleteInvoice, updateInvoice };
+
 
